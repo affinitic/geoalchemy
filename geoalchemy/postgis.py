@@ -2,7 +2,7 @@
 from sqlalchemy import select, func, and_
 from geoalchemy.base import SpatialComparator, PersistentSpatialElement, \
     WKBSpatialElement, WKTSpatialElement
-from geoalchemy.dialect import SpatialDialect 
+from geoalchemy.dialect import SpatialDialect
 from geoalchemy.functions import functions, BaseFunction
 
 class PGComparator(SpatialComparator):
@@ -20,7 +20,7 @@ class PGPersistentSpatialElement(PersistentSpatialElement):
 
     def __init__(self, desc):
         self.desc = desc
-        
+
     def __getattr__(self, name):
         try:
             return PersistentSpatialElement.__getattr__(self, name)
@@ -31,11 +31,11 @@ class PGPersistentSpatialElement(PersistentSpatialElement):
 class pg_functions(functions):
     """Functions only supported by PostGIS
     """
-    
+
     class svg(BaseFunction):
         """AsSVG(g)"""
         pass
-    
+
     class kml(BaseFunction):
         """AsKML(g)"""
         pass
@@ -43,11 +43,11 @@ class pg_functions(functions):
     class gml(BaseFunction):
         """AsGML(g)"""
         pass
-    
+
     class geojson(BaseFunction):
         """AsGeoJSON(g): available since PostGIS version 1.3.4"""
         pass
-    
+
     class expand(BaseFunction):
         """Expand(g)"""
         pass
@@ -69,7 +69,7 @@ class pg_functions(functions):
 
 class PGSpatialDialect(SpatialDialect):
     """Implementation of SpatialDialect for PostGIS."""
-    
+
     __functions = {
                    WKTSpatialElement: 'ST_GeomFromText',
                    WKBSpatialElement: 'ST_GeomFromWKB',
@@ -121,30 +121,31 @@ class PGSpatialDialect(SpatialDialect):
                    pg_functions.distance_sphere : 'ST_Distance_Sphere',
                    functions._within_distance : pg_functions._within_distance
                   }
-    
+
     def _get_function_mapping(self):
         return PGSpatialDialect.__functions
-    
+
     def process_result(self, value, type):
+        value = str(value)
         if type.wkt_internal:
             return PGPersistentSpatialElement(WKTSpatialElement(value, type.srid))
         return PGPersistentSpatialElement(WKBSpatialElement(value, type.srid))
-    
+
     def handle_ddl_before_drop(self, bind, table, column):
         bind.execute(select([func.DropGeometryColumn((table.schema or 'public'), table.name, column.name)]).execution_options(autocommit=True))
-    
-    def handle_ddl_after_create(self, bind, table, column):    
-        bind.execute(select([func.AddGeometryColumn((table.schema or 'public'), 
-                                                    table.name, 
-                                                    column.name, 
-                                                    column.type.srid, 
-                                                    column.type.name, 
+
+    def handle_ddl_after_create(self, bind, table, column):
+        bind.execute(select([func.AddGeometryColumn((table.schema or 'public'),
+                                                    table.name,
+                                                    column.name,
+                                                    column.type.srid,
+                                                    column.type.name,
                                                     column.type.dimension)]).execution_options(autocommit=True))
         if column.type.spatial_index:
-            bind.execute("CREATE INDEX \"idx_%s_%s\" ON \"%s\".\"%s\" USING GIST (%s)" % 
+            bind.execute("CREATE INDEX \"idx_%s_%s\" ON \"%s\".\"%s\" USING GIST (%s)" %
                             (table.name, column.name, (table.schema or 'public'), table.name, column.name))
-            
+
         if not column.nullable:
-            bind.execute("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" SET not null" % 
+            bind.execute("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" SET not null" %
                             ((table.schema or 'public'), table.name, column.name))
-            
+
