@@ -28,6 +28,12 @@ class PGPersistentSpatialElement(PersistentSpatialElement):
         except AttributeError:
             return getattr(pg_functions, name)(self)
 
+    def __setstate__(self, state):
+        self.desc = state[0]
+
+    def __getstate__(self):
+        return (str(self.desc.desc), )
+
 
 class pg_functions(functions):
     """Functions only supported by PostGIS
